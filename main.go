@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net/http"
 	"os"
 	"strings"
@@ -34,7 +35,7 @@ func main() {
 	cfg := &ServerConfig{Bearer: strings.TrimSpace(string(bearer))}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", messageHandler(cfg))
+	mux.HandleFunc("/", message_handler(cfg))
 
 	fmt.Printf("listening on port %s\n", Port)
 
@@ -44,7 +45,7 @@ func main() {
 	}
 }
 
-func messageHandler(cfg *ServerConfig) APIFunc {
+func message_handler(cfg *ServerConfig) APIFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("=== INCOMING REQUEST ===")
 		fmt.Println(r.Method, r.URL.Path)
@@ -88,8 +89,16 @@ func forward(cfg *ServerConfig, w http.ResponseWriter, r *http.Request, payload 
 	}
 	defer resp.Body.Close()
 
-	fmt.Println(resp.Status)
-	w.WriteHeader(resp.StatusCode)
+	_, err = io.Copy(w, resp.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	maps.Copy(w.Header(), resp.Header)
+
+	if f, ok := w.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 func set_required_headers(r *http.Request) {
