@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -19,6 +20,12 @@ type APIFunc func(w http.ResponseWriter, r *http.Request)
 
 const Port string = ":6942"
 const TargetServer string = "https://api.anthropic.com/v1/messages?beta=true"
+
+var (
+	StreamPrefix []byte = []byte("data: ")
+	MessageStart []byte = []byte("event: message_startdata")
+	MessageStop  []byte = []byte("event: message_stopdata")
+)
 
 func main() {
 	dev := flag.Bool("dev", false, "dev mode")
@@ -73,7 +80,7 @@ func forward(cfg *ServerConfig, w http.ResponseWriter, r *http.Request, payload 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	req.Header = r.Header
+	req.Header = r.Header.Clone()
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.Bearer))
 
 	client := &http.Client{
@@ -87,17 +94,25 @@ func forward(cfg *ServerConfig, w http.ResponseWriter, r *http.Request, payload 
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	if resp.StatusCode != http.StatusOK {
+		w.WriteHeader(resp.StatusCode)
+		return
+	}
 	defer resp.Body.Close()
+	maps.Copy(w.Header(), resp.Header)
 
-	_, err = io.Copy(w, resp.Body)
-	if err != nil {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	maps.Copy(w.Header(), resp.Header)
+	scanner := bufio.NewScanner(resp.Body)
 
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		w.Write(line)
+		w.Write([]byte("\n"))
+		flusher.Flush()
 	}
 }
 
