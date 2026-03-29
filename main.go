@@ -23,8 +23,8 @@ const TargetServer string = "https://api.anthropic.com/v1/messages?beta=true"
 
 var (
 	StreamPrefix []byte = []byte("data: ")
-	MessageStart []byte = []byte("event: message_startdata")
-	MessageStop  []byte = []byte("event: message_stopdata")
+	MessageStart []byte = []byte("event: message_start")
+	MessageStop  []byte = []byte("event: message_stop")
 )
 
 func main() {
@@ -54,7 +54,6 @@ func main() {
 
 func message_handler(cfg *ServerConfig) APIFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("=== INCOMING REQUEST ===")
 		fmt.Println(r.Method, r.URL.Path)
 
 		body, err := io.ReadAll(r.Body)
@@ -113,6 +112,10 @@ func forward(cfg *ServerConfig, w http.ResponseWriter, r *http.Request, payload 
 		w.Write(line)
 		w.Write([]byte("\n"))
 		flusher.Flush()
+
+		if bytes.HasPrefix(line, MessageStop) {
+			return
+		}
 	}
 }
 
