@@ -29,10 +29,15 @@ var (
 
 func main() {
 	dev := flag.Bool("dev", false, "dev mode")
+	auth := flag.Bool("auth", false, "auth flow")
 	flag.Parse()
 
 	if *dev {
 		tinker()
+		return
+	}
+	if *auth {
+		Auth()
 		return
 	}
 	bearer, err := os.ReadFile("bearer")

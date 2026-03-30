@@ -1,0 +1,181 @@
+package main
+
+import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"os"
+
+	"github.com/cli/browser"
+	gonanoid "github.com/matoous/go-nanoid/v2"
+)
+
+const (
+	RedirectUri     string = "http://localhost:58388/callback"
+	ClientID        string = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+	Scope           string = "org:create_api_key user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+	AuthStart       string = "https://claude.ai/oauth/authorize"
+	TokenExchange   string = "https://platform.claude.com/v1/oauth/token"
+	ChallengeMethod string = "S256"
+	AuthPort        string = ":58388"
+)
+
+type Exchange struct {
+	Grant    string `json:"grant_type"`
+	Code     string `json:"code"`
+	Redirect string `json:"redirect_uri"`
+	ClientID string `json:"client_id"`
+	Verifier string `json:"code_verifier"`
+	State    string `json:"state"`
+}
+type ExchangeResponse struct {
+	Access_token  string `json:"access_token"`
+	Refresh_token string `json:"refresh_token"`
+	Expires_in    int    `json:"expires_in"`
+}
+
+type AuthCfg struct {
+	Verifier string
+	State    string
+}
+
+func Auth() {
+	ch := make(chan string)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/callback", HandleAuthCallback(ch))
+	srv := &http.Server{Handler: mux, Addr: AuthPort}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			log.Fatalf("Failed to start server: %v", err)
+		}
+	}()
+	cfg, err := setupAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = OpenAuthStart(&cfg)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("waiting for code...")
+	code := <-ch
+
+	token, err := ExchangeCode(&cfg, code)
+	if err != nil {
+		log.Fatal(err)
+	}
+	b, err := json.Marshal(token)
+
+	if err != nil {
+		log.Fatal(err)
+	}
+	os.WriteFile("oauth.json", b, 0644)
+}
+
+func ExchangeCode(cfg *AuthCfg, code string) (ExchangeResponse, error) {
+	var token ExchangeResponse
+
+	payload := Exchange{
+		Grant:    "authorization_code",
+		Code:     code,
+		Redirect: RedirectUri,
+		ClientID: ClientID,
+		Verifier: cfg.Verifier,
+		State:    cfg.State,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return token, err
+	}
+	req, err := http.NewRequest(http.MethodPost, TokenExchange, bytes.NewReader(body))
+
+	if err != nil {
+		return token, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return token, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return token, fmt.Errorf("%s: %s", resp.Status, body)
+	}
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(&token); err != nil {
+		return token, err
+	}
+	return token, nil
+}
+
+func HandleAuthCallback(ch chan<- string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		code := r.URL.Query().Get("code")
+
+		if len(code) == 0 {
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		ch <- code
+		w.WriteHeader(http.StatusOK)
+	}
+}
+func OpenAuthStart(cfg *AuthCfg) error {
+	u, err := url.Parse(AuthStart)
+	if err != nil {
+		return err
+	}
+	query := u.Query()
+	query.Set("code", "true")
+	query.Set("response_type", "code")
+	query.Set("redirect_uri", RedirectUri)
+	query.Set("scope", Scope)
+	query.Set("code_challenge", HashCodeVerifier(cfg.Verifier))
+	query.Set("code_challenge_method", ChallengeMethod)
+	query.Set("state", cfg.State)
+	query.Set("client_id", ClientID)
+	u.RawQuery = query.Encode()
+
+	if err := browser.OpenURL(u.String()); err != nil {
+		return fmt.Errorf("failed to open browser: %w", err)
+	}
+	return nil
+}
+
+func setupAuth() (AuthCfg, error) {
+	verifier, err := GenerateVerifier()
+
+	if err != nil {
+		return AuthCfg{}, err
+	}
+	state, err := GenerateVerifier()
+	if err != nil {
+		return AuthCfg{}, err
+	}
+	return AuthCfg{Verifier: verifier, State: state}, nil
+}
+
+const entropy int = 43
+const alphabet string = "abcdefghijklmnopqrstuvwxyz0123456789"
+
+func GenerateVerifier() (string, error) {
+	return gonanoid.Generate(alphabet, entropy)
+}
+func HashCodeVerifier(verifier string) string {
+	sum := sha256.Sum256([]byte(verifier))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}
