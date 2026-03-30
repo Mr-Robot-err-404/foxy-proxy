@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"crypto/sha256"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,12 @@ import (
 	"github.com/cli/browser"
 	gonanoid "github.com/matoous/go-nanoid/v2"
 )
+
+//go:embed html/success.html
+var successHTML []byte
+
+//go:embed html/error.html
+var errorHTML []byte
 
 const (
 	RedirectUri     string = "http://localhost:58388/callback"
@@ -39,6 +46,10 @@ type ExchangeResponse struct {
 	Refresh_token string `json:"refresh_token"`
 	Expires_in    int    `json:"expires_in"`
 }
+type TokenChannel struct {
+	Resp ExchangeResponse
+	Err  error
+}
 
 type AuthCfg struct {
 	Verifier string
@@ -46,10 +57,14 @@ type AuthCfg struct {
 }
 
 func Auth() {
-	ch := make(chan string)
+	ch := make(chan TokenChannel)
 
+	cfg, err := setupAuth()
+	if err != nil {
+		log.Fatal(err)
+	}
 	mux := http.NewServeMux()
-	mux.HandleFunc("/callback", HandleAuthCallback(ch))
+	mux.HandleFunc("/callback", HandleAuthCallback(&cfg, ch))
 	srv := &http.Server{Handler: mux, Addr: AuthPort}
 
 	go func() {
@@ -57,28 +72,26 @@ func Auth() {
 			log.Fatalf("Failed to start server: %v", err)
 		}
 	}()
-	cfg, err := setupAuth()
-	if err != nil {
-		log.Fatal(err)
-	}
 	err = OpenAuthStart(&cfg)
 
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("waiting for code...")
-	code := <-ch
+	token := <-ch
 
-	token, err := ExchangeCode(&cfg, code)
-	if err != nil {
-		log.Fatal(err)
+	if token.Err != nil {
+		log.Fatal(token.Err)
 	}
-	b, err := json.Marshal(token)
+	b, err := json.Marshal(token.Resp)
 
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
-	os.WriteFile("oauth.json", b, 0644)
+	if err := os.WriteFile("oauth.json", b, 0644); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("oauth saved to file")
 }
 
 func ExchangeCode(cfg *AuthCfg, code string) (ExchangeResponse, error) {
@@ -121,7 +134,7 @@ func ExchangeCode(cfg *AuthCfg, code string) (ExchangeResponse, error) {
 	return token, nil
 }
 
-func HandleAuthCallback(ch chan<- string) func(w http.ResponseWriter, r *http.Request) {
+func HandleAuthCallback(cfg *AuthCfg, ch chan<- TokenChannel) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		code := r.URL.Query().Get("code")
 
@@ -130,8 +143,17 @@ func HandleAuthCallback(ch chan<- string) func(w http.ResponseWriter, r *http.Re
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		ch <- code
+		token, err := ExchangeCode(cfg, code)
+
+		if err != nil {
+			ch <- TokenChannel{Err: err}
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Write(errorHTML)
+			return
+		}
+		ch <- TokenChannel{Resp: token}
 		w.WriteHeader(http.StatusOK)
+		w.Write(successHTML)
 	}
 }
 func OpenAuthStart(cfg *AuthCfg) error {

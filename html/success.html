@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Authentication Successful</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        background: #1a1a1a;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .container {
+        border: 1px solid #333;
+        border-radius: 8px;
+        text-align: center;
+        max-width: 400px;
+        overflow: hidden;
+      }
+      .success-section {
+        background: #1e3a20;
+        padding: 3rem 4rem;
+      }
+      .footer-section {
+        background: #242424;
+        padding: 1.5rem 4rem;
+      }
+      .success-icon {
+        width: 64px;
+        height: 64px;
+        margin: 0 auto 1.5rem;
+        background: #2d5a2f;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .success-icon svg {
+        width: 32px;
+        height: 32px;
+        stroke: #4caf50;
+        stroke-width: 3;
+        fill: none;
+      }
+      h2 {
+        color: #66bb6a;
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 0;
+      }
+      p {
+        color: #a0a0a0;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="success-section">
+        <div class="success-icon">
+          <svg viewBox="0 0 24 24">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <h2>Authentication Successful</h2>
+      </div>
+      <div class="footer-section">
+        <p>You can safely close this window and return to your terminal.</p>
+      </div>
+    </div>
+  </body>
+</html>
