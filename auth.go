@@ -2,9 +2,7 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	_ "embed"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,7 +12,6 @@ import (
 	"os"
 
 	"github.com/cli/browser"
-	gonanoid "github.com/matoous/go-nanoid/v2"
 )
 
 //go:embed html/success.html
@@ -189,15 +186,4 @@ func setupAuth() (AuthCfg, error) {
 		return AuthCfg{}, err
 	}
 	return AuthCfg{Verifier: verifier, State: state}, nil
-}
-
-const entropy int = 43
-const alphabet string = "abcdefghijklmnopqrstuvwxyz0123456789"
-
-func GenerateVerifier() (string, error) {
-	return gonanoid.Generate(alphabet, entropy)
-}
-func HashCodeVerifier(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
 }
