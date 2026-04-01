@@ -9,8 +9,6 @@ import (
 	"log"
 	"maps"
 	"net/http"
-	"os"
-	"strings"
 )
 
 type ServerConfig struct {
@@ -36,28 +34,27 @@ func main() {
 		tinker()
 		return
 	}
+	foxy, err := initFoxy()
+
+	if err != nil {
+		log.Fatal(err)
+	}
 	if *auth {
-		Auth()
+		foxy.Auth()
 		return
 	}
-	bearer, err := os.ReadFile("bearer")
-	if err != nil {
-		panic(err)
-	}
-	cfg := &ServerConfig{Bearer: strings.TrimSpace(string(bearer))}
-
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", message_handler(cfg))
+	mux.HandleFunc("/", message_handler(&foxy))
 
-	fmt.Printf("listening on port %s\n", Port)
+	fmt.Printf("listening on port %s\n", foxy.port)
 
-	err = http.ListenAndServe(Port, mux)
+	err = http.ListenAndServe(foxy.port, mux)
 	if err != nil {
 		panic(err)
 	}
 }
 
-func message_handler(cfg *ServerConfig) APIFunc {
+func message_handler(foxy *Foxy) APIFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		fmt.Println(r.Method, r.URL.Path)
 
@@ -74,18 +71,18 @@ func message_handler(cfg *ServerConfig) APIFunc {
 		}
 		set_required_headers(r)
 		filter_excluded_headers(r)
-		forward(cfg, w, r, payload)
+		forward(foxy, w, r, payload)
 	}
 }
 
-func forward(cfg *ServerConfig, w http.ResponseWriter, r *http.Request, payload []byte) {
+func forward(foxy *Foxy, w http.ResponseWriter, r *http.Request, payload []byte) {
 	req, err := http.NewRequestWithContext(r.Context(), "POST", TargetServer, bytes.NewReader(payload))
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 	req.Header = r.Header.Clone()
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", cfg.Bearer))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", foxy.auth.Access_token))
 
 	client := &http.Client{
 		Transport: &http.Transport{

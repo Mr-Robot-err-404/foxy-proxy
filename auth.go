@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"os"
 
 	"github.com/cli/browser"
 )
@@ -53,7 +52,7 @@ type AuthCfg struct {
 	State    string
 }
 
-func Auth() {
+func (foxy *Foxy) Auth() {
 	ch := make(chan TokenChannel)
 
 	cfg, err := setupAuth()
@@ -79,13 +78,9 @@ func Auth() {
 	if token.Err != nil {
 		log.Fatal(token.Err)
 	}
-	b, err := json.Marshal(token.Resp)
+	err = foxy.saveAuth(token.Resp)
 
 	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	if err := os.WriteFile("oauth.json", b, 0644); err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("oauth saved to file")
