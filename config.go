@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 )
 
@@ -40,19 +41,19 @@ func rootPath() (string, error) {
 	return home + FoxyPath, nil
 }
 
-func (cfg *Foxy) saveAuth(auth ExchangeResponse) error {
+func (foxy *Foxy) saveAuth(auth ExchangeResponse) error {
 	b, err := json.Marshal(auth)
 	if err != nil {
 		return err
 	}
-	path := cfg.root + AuthFile
+	path := foxy.root + AuthFile
 	return os.WriteFile(path, b, 0644)
 }
 
-func (cfg *Foxy) readAuth() (ExchangeResponse, error) {
+func (foxy *Foxy) readAuth() (ExchangeResponse, error) {
 	var auth ExchangeResponse
 
-	path := cfg.root + AuthFile
+	path := foxy.root + AuthFile
 	b, err := os.ReadFile(path)
 
 	if err != nil {
@@ -64,4 +65,8 @@ func (cfg *Foxy) readAuth() (ExchangeResponse, error) {
 		return auth, err
 	}
 	return auth, nil
+}
+
+func (foxy *Foxy) server_url() string {
+	return fmt.Sprintf("http://localhost%s", foxy.port)
 }

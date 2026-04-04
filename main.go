@@ -16,8 +16,10 @@ type ServerConfig struct {
 }
 type APIFunc func(w http.ResponseWriter, r *http.Request)
 
-const Port string = ":6942"
-const TargetServer string = "https://api.anthropic.com/v1/messages?beta=true"
+const (
+	Port         string = ":6942"
+	TargetServer string = "https://api.anthropic.com/v1/messages?beta=true"
+)
 
 var (
 	StreamPrefix []byte = []byte("data: ")
@@ -43,14 +45,28 @@ func main() {
 		foxy.Auth()
 		return
 	}
+	go foxy.serve()
+	for {
+	}
+}
+
+func (foxy *Foxy) run_server() {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", message_handler(&foxy))
+	mux.HandleFunc("/v1/messages", message_handler(foxy))
+	mux.HandleFunc("/foxy/health", health_check())
 
 	fmt.Printf("listening on port %s\n", foxy.port)
 
-	err = http.ListenAndServe(foxy.port, mux)
+	err := http.ListenAndServe(foxy.port, mux)
 	if err != nil {
 		panic(err)
+	}
+}
+
+func health_check() APIFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("foxy is foxing"))
 	}
 }
 
