@@ -46,7 +46,8 @@ func main() {
 		return
 	}
 	go foxy.serve()
-	for {
+	if err := runTUI(foxy.port[1:]); err != nil {
+		log.Fatal(err)
 	}
 }
 

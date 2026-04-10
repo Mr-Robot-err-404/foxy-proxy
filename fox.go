@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 )
 
 type SystemItem struct {
@@ -16,6 +17,8 @@ var (
 	EmptyObject = json.RawMessage(`{}`)
 	EmptyString = json.RawMessage(`""`)
 )
+
+var Keywords = []string{"opencode", "<directories>", "</directories>"}
 
 var Transformations = []Transformation{
 	func(m Payload) error {
@@ -94,11 +97,17 @@ func set_json[T any](m Payload, key string, value T) error {
 }
 
 func system_transform(system []SystemItem) []SystemItem {
-	if missing_system_item(system) {
-		correction := []SystemItem{Fingerprint}
-		system = append(correction, system...)
+	updated := []SystemItem{}
+
+	for _, current := range system {
+		current.Text = strip_system_prompt(current.Text)
+		updated = append(updated, current)
 	}
-	return system
+	if missing_system_item(updated) {
+		correction := []SystemItem{Fingerprint}
+		updated = append(correction, updated...)
+	}
+	return updated
 }
 
 func missing_system_item(items []SystemItem) bool {
@@ -108,4 +117,26 @@ func missing_system_item(items []SystemItem) bool {
 		}
 	}
 	return true
+}
+
+func strip_system_prompt(prompt string) string {
+	s := strings.Builder{}
+
+	for line := range strings.SplitSeq(prompt, "\n") {
+		if contains_keyword(line) {
+			continue
+		}
+		s.WriteString(line)
+		s.WriteString("\n")
+	}
+	return strings.TrimSuffix(s.String(), "\n")
+}
+
+func contains_keyword(line string) bool {
+	for _, k := range Keywords {
+		if strings.Contains(line, k) {
+			return true
+		}
+	}
+	return false
 }
