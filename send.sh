@@ -14,6 +14,8 @@ if [ ! -f "$payload_file" ]; then
   exit 1
 fi
 
+CLAUDE_BEARER=$(cat $HOME/.config/foxy/auth.json | jq -r '.access_token')
+
 curl --no-buffer -X POST "https://api.anthropic.com/v1/messages?beta=true" \
   -H "Accept: application/json" \
   -H "Authorization: Bearer $CLAUDE_BEARER" \

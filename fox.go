@@ -9,6 +9,10 @@ type SystemItem struct {
 	Type string `json:"type"`
 	Text string `json:"text"`
 }
+type ToolsItem struct {
+	Name string `json:"name"`
+}
+
 type Payload map[string]json.RawMessage
 type Transformation = func(m Payload) error
 
@@ -18,11 +22,18 @@ var (
 	EmptyString = json.RawMessage(`""`)
 )
 
-var Keywords = []string{"opencode", "<directories>", "</directories>"}
+var System = []string{"opencode", "<directories>", "</directories>", "Here is some useful information about the environment you are running in:"}
+
+var ToolsRemapping = map[string]string{
+	"todowrite": "taskwrite",
+}
 
 var Transformations = []Transformation{
 	func(m Payload) error {
 		return transform_json(m, "system", system_transform)
+	},
+	func(m Payload) error {
+		return transform_json(m, "tools", tools_transform)
 	},
 	func(m Payload) error {
 		return ensure_exists(m, "metadata", EmptyObject)
@@ -96,6 +107,18 @@ func set_json[T any](m Payload, key string, value T) error {
 	return nil
 }
 
+func tools_transform(tools []map[string]json.RawMessage) []map[string]json.RawMessage {
+	for _, tool := range tools {
+		var name string
+		json.Unmarshal(tool["name"], &name)
+
+		if renamed, ok := ToolsRemapping[name]; ok {
+			tool["name"] = json.RawMessage(`"` + renamed + `"`)
+		}
+	}
+	return tools
+}
+
 func system_transform(system []SystemItem) []SystemItem {
 	updated := []SystemItem{}
 
@@ -123,7 +146,7 @@ func strip_system_prompt(prompt string) string {
 	s := strings.Builder{}
 
 	for line := range strings.SplitSeq(prompt, "\n") {
-		if contains_keyword(line) {
+		if contains_keyword(line, System) {
 			continue
 		}
 		s.WriteString(line)
@@ -132,8 +155,8 @@ func strip_system_prompt(prompt string) string {
 	return strings.TrimSuffix(s.String(), "\n")
 }
 
-func contains_keyword(line string) bool {
-	for _, k := range Keywords {
+func contains_keyword(line string, keywords []string) bool {
+	for _, k := range keywords {
 		if strings.Contains(line, k) {
 			return true
 		}
