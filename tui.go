@@ -28,10 +28,11 @@ var (
 			Background(lipgloss.Color(tnBg))
 
 	logPanelStyle = panelStyle.
-			BorderRight(true).
-			BorderStyle(lipgloss.ThickBorder()).
-			BorderRightForeground(lipgloss.Color(tnBorder)).
-			BorderBackground(lipgloss.Color(tnBg))
+		BorderRight(true).
+		BorderStyle(lipgloss.ThickBorder()).
+		BorderRightForeground(lipgloss.Color(tnBorder)).
+		BorderBackground(lipgloss.Color(tnBg)).
+		PaddingLeft(0)
 
 	logLineStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(tnFg)).
@@ -100,13 +101,19 @@ func (m *model) readNewLines() string {
 	return string(buf[:n])
 }
 
-func colorLogLine(line string) string {
+func colorLogLine(line string, width int) string {
 	parts := strings.SplitN(line, " ", 3)
 	if len(parts) < 3 {
-		return logLineStyle.Render(line)
+		return logLineStyle.Width(width).Render(line)
 	}
 	ts := logTimestampStyle.Render(parts[0] + " " + parts[1])
 	msg := parts[2]
+
+	tsWidth := lipgloss.Width(ts) + 1 // +1 for the space separator
+	msgWidth := width - tsWidth
+	if msgWidth < 0 {
+		msgWidth = 0
+	}
 
 	var msgRendered string
 	switch {
@@ -114,23 +121,27 @@ func colorLogLine(line string) string {
 		msgRendered = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(tnRed)).
 			Background(lipgloss.Color(tnBg)).
+			Width(msgWidth).
 			Render(msg)
 	case strings.Contains(msg, "WARN"):
 		msgRendered = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(tnOrange)).
 			Background(lipgloss.Color(tnBg)).
+			Width(msgWidth).
 			Render(msg)
 	case strings.Contains(msg, "listening") || strings.Contains(msg, "running"):
-		msgRendered = logLevelStyle.Render(msg)
+		msgRendered = logLevelStyle.Width(msgWidth).Render(msg)
 	case strings.Contains(msg, "POST") || strings.Contains(msg, "GET"):
 		msgRendered = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(tnBlue)).
 			Background(lipgloss.Color(tnBg)).
+			Width(msgWidth).
 			Render(msg)
 	default:
-		msgRendered = logLineStyle.Render(msg)
+		msgRendered = logLineStyle.Width(msgWidth).Render(msg)
 	}
-	return ts + " " + msgRendered
+	sep := lipgloss.NewStyle().Background(lipgloss.Color(tnBg)).Render(" ")
+	return ts + sep + msgRendered
 }
 
 func (m model) Init() tea.Cmd {
@@ -159,7 +170,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			lines := strings.Split(strings.TrimRight(chunk, "\n"), "\n")
 			colored := make([]string, len(lines))
 			for i, l := range lines {
-				colored[i] = colorLogLine(l)
+				colored[i] = colorLogLine(l, m.logPanelInnerWidth())
 			}
 			if m.content == "" {
 				m.content = strings.Join(colored, "\n")
