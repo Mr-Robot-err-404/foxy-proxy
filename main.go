@@ -9,6 +9,7 @@ import (
 	"log"
 	"maps"
 	"net/http"
+	"time"
 )
 
 type ServerConfig struct {
@@ -36,7 +37,7 @@ func main() {
 		tinker()
 		return
 	}
-	foxy, err := initFoxy()
+	foxy, err := init_foxy()
 
 	if err != nil {
 		log.Fatal(err)
@@ -45,8 +46,13 @@ func main() {
 		foxy.Auth()
 		return
 	}
+	err = foxy.complete_setup()
+
+	if err != nil {
+		log.Fatal(err)
+	}
 	go foxy.serve()
-	if err := runTUI(foxy.port[1:], foxy.root+LogFile); err != nil {
+	if err := run_tui(foxy.port[1:], foxy.root+LogFile); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -71,6 +77,25 @@ func health_check() APIFunc {
 
 func message_handler(foxy *Foxy) APIFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		foxy.mu.Lock()
+
+		if foxy.should_refresh() {
+			auth, err := foxy.exchange_refresh_token()
+
+			if err != nil {
+				log.Printf("failed to refresh token: %s", err)
+				foxy.mu.Unlock()
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			if err := foxy.save_auth(auth); err != nil {
+				log.Printf("failed to save auth: %s", err)
+			}
+			log.Println("Refreshed access token")
+			foxy.auth = auth
+			foxy.expires_at = time.Now().Add(time.Duration(auth.Expires_in) * time.Second)
+		}
+		foxy.mu.Unlock()
 		log.Printf("%s %s", r.Method, r.URL.Path)
 
 		body, err := io.ReadAll(r.Body)

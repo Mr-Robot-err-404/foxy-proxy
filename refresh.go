@@ -8,7 +8,7 @@ import (
 	"net/http"
 )
 
-type RefreshResponse struct {
+type ExchangeResponse struct {
 	Token_type    string `json:"token_type"`
 	Access_token  string `json:"access_token"`
 	Expires_in    int    `json:"expires_in"`
@@ -35,12 +35,12 @@ const (
 	RefreshScope string = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
 )
 
-func exchange_refresh_token(refresh_token string) (RefreshResponse, error) {
-	var result RefreshResponse
+func (foxy *Foxy) exchange_refresh_token() (ExchangeResponse, error) {
+	var result ExchangeResponse
 
 	payload := RefreshPayload{
 		Grant_type:    "refresh_token",
-		Refresh_token: refresh_token,
+		Refresh_token: foxy.auth.Refresh_token,
 		ClientID:      ClientID,
 		Scope:         RefreshScope,
 	}

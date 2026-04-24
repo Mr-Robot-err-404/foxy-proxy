@@ -13,8 +13,6 @@ import (
 	"github.com/cli/browser"
 )
 
-// Note: auth.go log.Fatal calls are intentional — auth runs before the TUI/log file is ready
-
 //go:embed html/success.html
 var successHTML []byte
 
@@ -39,11 +37,6 @@ type Exchange struct {
 	Verifier string `json:"code_verifier"`
 	State    string `json:"state"`
 }
-type ExchangeResponse struct {
-	Access_token  string `json:"access_token"`
-	Refresh_token string `json:"refresh_token"`
-	Expires_in    int    `json:"expires_in"`
-}
 type TokenChannel struct {
 	Resp ExchangeResponse
 	Err  error
@@ -57,7 +50,7 @@ type AuthCfg struct {
 func (foxy *Foxy) Auth() {
 	ch := make(chan TokenChannel)
 
-	cfg, err := setupAuth()
+	cfg, err := setup_auth()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -80,7 +73,7 @@ func (foxy *Foxy) Auth() {
 	if token.Err != nil {
 		log.Fatal(token.Err)
 	}
-	err = foxy.saveAuth(token.Resp)
+	err = foxy.save_auth(token.Resp)
 
 	if err != nil {
 		log.Fatal(err)
@@ -172,7 +165,7 @@ func OpenAuthStart(cfg *AuthCfg) error {
 	return nil
 }
 
-func setupAuth() (AuthCfg, error) {
+func setup_auth() (AuthCfg, error) {
 	verifier, err := GenerateVerifier()
 
 	if err != nil {

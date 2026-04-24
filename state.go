@@ -23,5 +23,6 @@ func (foxy *Foxy) serve() {
 		log.Printf("server already running on port %s", foxy.port)
 		return
 	}
+	log.Println("Proxy server started")
 	foxy.run_server()
 }

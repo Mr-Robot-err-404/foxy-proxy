@@ -46,8 +46,6 @@ var (
 			Background(lipgloss.Color(tnBg)).
 			Bold(true)
 
-	rightPanelStyle = panelStyle.Copy()
-
 	portLabelStyle = lipgloss.NewStyle().
 			PaddingLeft(2).
 			PaddingRight(2).
@@ -214,14 +212,14 @@ func (m model) View() string {
 		portLabelStyle.Render("port"),
 		portValueStyle.Render(fmt.Sprintf(":%s", m.port)),
 	)
-	rightPanel := rightPanelStyle.
+	rightPanel := panelStyle.
 		Width(m.rightPanelWidth()).
 		Height(m.height).
 		Render(statusLine)
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel)
 }
 
-func runTUI(port string, logPath string) error {
+func run_tui(port string, logPath string) error {
 	m := model{port: port, logPath: logPath}
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
 	_, err := p.Run()

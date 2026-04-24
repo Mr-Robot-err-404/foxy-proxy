@@ -5,41 +5,55 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+	"sync"
+	"time"
 )
 
 type Foxy struct {
-	auth ExchangeResponse
-	root string
-	port string
+	auth       ExchangeResponse
+	root       string
+	port       string
+	expires_at time.Time
+	mu         *sync.Mutex
 }
 
 const (
-	AuthFile string = "auth.json"
-	LogFile  string = "foxy.log"
-	FoxyPath string = "/.config/foxy/"
+	AuthFile   string = "auth.json"
+	ExpiryFile string = "expiry"
+	LogFile    string = "foxy.log"
+	FoxyPath   string = "/.config/foxy/"
 )
 
-func initFoxy() (Foxy, error) {
-	root, err := rootPath()
+func init_foxy() (Foxy, error) {
+	root, err := root_path()
 
 	if err != nil {
 		return Foxy{}, err
 	}
-	cfg := Foxy{root: root, port: Port}
-
-	if err := cfg.initLogger(); err != nil {
-		return cfg, err
-	}
-	auth, err := cfg.readAuth()
-
-	if err != nil {
-		return cfg, err
-	}
-	cfg.auth = auth
-	return cfg, nil
+	return Foxy{root: root, port: Port, mu: new(sync.Mutex)}, nil
 }
 
-func (foxy *Foxy) initLogger() error {
+func (foxy *Foxy) complete_setup() error {
+	if err := foxy.init_logger(); err != nil {
+		return err
+	}
+	auth, err := foxy.read_auth()
+
+	if err != nil {
+		return err
+	}
+	expiry, err := foxy.read_expiry()
+
+	if err != nil {
+		return err
+	}
+	foxy.auth = auth
+	foxy.expires_at = time.Unix(expiry, 0)
+	return nil
+}
+
+func (foxy *Foxy) init_logger() error {
 	path := foxy.root + LogFile
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
@@ -50,7 +64,7 @@ func (foxy *Foxy) initLogger() error {
 	return nil
 }
 
-func rootPath() (string, error) {
+func root_path() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -58,16 +72,19 @@ func rootPath() (string, error) {
 	return home + FoxyPath, nil
 }
 
-func (foxy *Foxy) saveAuth(auth ExchangeResponse) error {
+func (foxy *Foxy) save_auth(auth ExchangeResponse) error {
 	b, err := json.Marshal(auth)
 	if err != nil {
 		return err
 	}
-	path := foxy.root + AuthFile
-	return os.WriteFile(path, b, 0644)
+	if err := os.WriteFile(foxy.root+AuthFile, b, 0600); err != nil {
+		return err
+	}
+	expiry := time.Now().Unix() + int64(auth.Expires_in)
+	return os.WriteFile(foxy.root+ExpiryFile, []byte(strconv.FormatInt(expiry, 10)), 0600)
 }
 
-func (foxy *Foxy) readAuth() (ExchangeResponse, error) {
+func (foxy *Foxy) read_auth() (ExchangeResponse, error) {
 	var auth ExchangeResponse
 
 	path := foxy.root + AuthFile
@@ -82,6 +99,18 @@ func (foxy *Foxy) readAuth() (ExchangeResponse, error) {
 		return auth, err
 	}
 	return auth, nil
+}
+
+func (foxy *Foxy) should_refresh() bool {
+	return time.Now().After(foxy.expires_at.Add(-5 * time.Minute))
+}
+
+func (foxy *Foxy) read_expiry() (int64, error) {
+	b, err := os.ReadFile(foxy.root + ExpiryFile)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(string(b), 10, 64)
 }
 
 func (foxy *Foxy) server_url() string {
