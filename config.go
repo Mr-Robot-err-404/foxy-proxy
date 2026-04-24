@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -14,6 +15,7 @@ type Foxy struct {
 
 const (
 	AuthFile string = "auth.json"
+	LogFile  string = "foxy.log"
 	FoxyPath string = "/.config/foxy/"
 )
 
@@ -24,6 +26,10 @@ func initFoxy() (Foxy, error) {
 		return Foxy{}, err
 	}
 	cfg := Foxy{root: root, port: Port}
+
+	if err := cfg.initLogger(); err != nil {
+		return cfg, err
+	}
 	auth, err := cfg.readAuth()
 
 	if err != nil {
@@ -31,6 +37,17 @@ func initFoxy() (Foxy, error) {
 	}
 	cfg.auth = auth
 	return cfg, nil
+}
+
+func (foxy *Foxy) initLogger() error {
+	path := foxy.root + LogFile
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	if err != nil {
+		return err
+	}
+	log.SetOutput(f)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lmsgprefix)
+	return nil
 }
 
 func rootPath() (string, error) {

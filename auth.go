@@ -13,6 +13,8 @@ import (
 	"github.com/cli/browser"
 )
 
+// Note: auth.go log.Fatal calls are intentional — auth runs before the TUI/log file is ready
+
 //go:embed html/success.html
 var successHTML []byte
 
@@ -83,7 +85,7 @@ func (foxy *Foxy) Auth() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("oauth saved to file")
+	log.Println("oauth saved to file")
 }
 
 func ExchangeCode(cfg *AuthCfg, code string) (ExchangeResponse, error) {

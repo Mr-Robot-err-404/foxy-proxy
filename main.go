@@ -46,7 +46,7 @@ func main() {
 		return
 	}
 	go foxy.serve()
-	if err := runTUI(foxy.port[1:]); err != nil {
+	if err := runTUI(foxy.port[1:], foxy.root+LogFile); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -56,7 +56,7 @@ func (foxy *Foxy) run_server() {
 	mux.HandleFunc("/v1/messages", message_handler(foxy))
 	mux.HandleFunc("/foxy/health", health_check())
 
-	fmt.Printf("listening on port %s\n", foxy.port)
+	log.Printf("listening on port %s", foxy.port)
 
 	err := http.ListenAndServe(foxy.port, mux)
 	if err != nil {
@@ -73,11 +73,13 @@ func health_check() APIFunc {
 
 func message_handler(foxy *Foxy) APIFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println(r.Method, r.URL.Path)
+		log.Printf("%s %s", r.Method, r.URL.Path)
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Fatal(err)
+			log.Printf("read body: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 		defer r.Body.Close()
 		payload, err := sanitize_payload(body)

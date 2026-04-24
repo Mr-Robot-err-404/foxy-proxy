@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 )
 
@@ -19,7 +20,7 @@ func (foxy *Foxy) is_server_live() bool {
 
 func (foxy *Foxy) serve() {
 	if foxy.is_server_live() {
-		fmt.Printf("server already running on port %s\n", foxy.port)
+		log.Printf("server already running on port %s", foxy.port)
 		return
 	}
 	foxy.run_server()

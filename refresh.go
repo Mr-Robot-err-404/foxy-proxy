@@ -30,8 +30,10 @@ var RefreshHeaders = map[string]string{
 	"Host":         "platform.claude.com",
 }
 
-const RefreshURL string = "https://platform.claude.com/v1/oauth/token"
-const RefreshScope string = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+const (
+	RefreshURL   string = "https://platform.claude.com/v1/oauth/token"
+	RefreshScope string = "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+)
 
 func exchange_refresh_token(refresh_token string) (RefreshResponse, error) {
 	var result RefreshResponse
