@@ -56,8 +56,6 @@ func (foxy *Foxy) run_server() {
 	mux.HandleFunc("/v1/messages", message_handler(foxy))
 	mux.HandleFunc("/foxy/health", health_check())
 
-	log.Printf("listening on port %s", foxy.port)
-
 	err := http.ListenAndServe(foxy.port, mux)
 	if err != nil {
 		panic(err)

@@ -41,7 +41,7 @@ func initFoxy() (Foxy, error) {
 
 func (foxy *Foxy) initLogger() error {
 	path := foxy.root + LogFile
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return err
 	}
