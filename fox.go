@@ -1,7 +1,10 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -22,7 +25,11 @@ var (
 	EmptyString = json.RawMessage(`""`)
 )
 
-var System = []string{"opencode", "<directories>", "</directories>", "Here is some useful information about the environment you are running in:"}
+var System = []string{
+	"<directories>",
+	"</directories>",
+	"Here is some useful information about the environment you are running in:",
+}
 
 var ToolsRemapping = map[string]string{
 	"todowrite": "taskwrite",
@@ -30,7 +37,9 @@ var ToolsRemapping = map[string]string{
 
 var Transformations = []Transformation{
 	func(m Payload) error {
-		return transform_json(m, "system", system_transform)
+		return transform_json(m, "system", func(system []SystemItem) []SystemItem {
+			return system_transform(system, m)
+		})
 	},
 	func(m Payload) error {
 		return transform_json(m, "tools", tools_transform)
@@ -42,9 +51,71 @@ var Transformations = []Transformation{
 		return ensure_exists(m, "tools", EmptyArray)
 	},
 }
-var Fingerprint = SystemItem{
-	Type: "text",
-	Text: "x-anthropic-billing-header: cc_version=2.1.81.df2; cc_entrypoint=cli; cch=c90fe;",
+
+const (
+	salt    = "59cf53e54c78"
+	version = "2.1.81"
+)
+
+const BillingPrefix string = "x-anthropic-billing-header: cc_version=%s.df2; cc_entrypoint=cli; cch=%s;"
+
+func compute_cch(m Payload) string {
+	type Message struct {
+		Role    string          `json:"role"`
+		Content json.RawMessage `json:"content"`
+	}
+	var messages []Message
+
+	if data, ok := m["messages"]; ok {
+		json.Unmarshal(data, &messages)
+	}
+	var text string
+
+	for _, msg := range messages {
+		if msg.Role != "user" {
+			continue
+		}
+		var s string
+
+		if err := json.Unmarshal(msg.Content, &s); err == nil {
+			text = s
+			break
+		}
+		var blocks []struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}
+		if err := json.Unmarshal(msg.Content, &blocks); err == nil {
+			for _, b := range blocks {
+				if b.Type == "text" {
+					text = b.Text
+					break
+				}
+			}
+		}
+		break
+	}
+	runes := []rune(text)
+	chars := make([]rune, 3)
+
+	for i, idx := range []int{4, 7, 20} {
+		if idx < len(runes) {
+			chars[i] = runes[idx]
+			continue
+		}
+		chars[i] = '0'
+	}
+	input := salt + string(chars) + version
+	sum := sha256.Sum256([]byte(input))
+	return hex.EncodeToString(sum[:])[:3]
+}
+
+func fingerprint(m Payload) SystemItem {
+	cch := compute_cch(m)
+	return SystemItem{
+		Type: "text",
+		Text: fmt.Sprintf(BillingPrefix, version, cch),
+	}
 }
 
 var RequiredHeaders = map[string]string{
@@ -119,23 +190,22 @@ func tools_transform(tools []map[string]json.RawMessage) []map[string]json.RawMe
 	return tools
 }
 
-func system_transform(system []SystemItem) []SystemItem {
+func system_transform(system []SystemItem, m Payload) []SystemItem {
 	updated := []SystemItem{}
 
 	for _, current := range system {
 		current.Text = strip_system_prompt(current.Text)
 		updated = append(updated, current)
 	}
-	if missing_system_item(updated) {
-		correction := []SystemItem{Fingerprint}
-		updated = append(correction, updated...)
+	if missing_fingerprint(updated) {
+		updated = append([]SystemItem{fingerprint(m)}, updated...)
 	}
 	return updated
 }
 
-func missing_system_item(items []SystemItem) bool {
+func missing_fingerprint(items []SystemItem) bool {
 	for _, item := range items {
-		if item.Text == Fingerprint.Text {
+		if strings.Contains(item.Text, "x-anthropic-billing-header") {
 			return false
 		}
 	}
