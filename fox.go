@@ -26,6 +26,7 @@ var (
 )
 
 var System = []string{
+	"opencode",
 	"<directories>",
 	"</directories>",
 	"Here is some useful information about the environment you are running in:",
@@ -119,7 +120,7 @@ func fingerprint(m Payload) SystemItem {
 }
 
 var RequiredHeaders = map[string]string{
-	"User-Agent":                                "claude-cli/2.1.81 (external, cli)",
+	"User-Agent":                                fmt.Sprintf("claude-cli/%s (external, cli)", version),
 	"X-Stainless-Arch":                          "arm64",
 	"X-Stainless-Lang":                          "js",
 	"X-Stainless-OS":                            "MacOS",
