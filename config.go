@@ -80,7 +80,7 @@ func (foxy *Foxy) save_auth(auth ExchangeResponse) error {
 	if err := os.WriteFile(foxy.root+AuthFile, b, 0600); err != nil {
 		return err
 	}
-	expiry := time.Now().Unix() + int64(auth.Expires_in)
+	expiry := time.Now().Unix() + int64(auth.ExpiresIn)
 	return os.WriteFile(foxy.root+ExpiryFile, []byte(strconv.FormatInt(expiry, 10)), 0600)
 }
 

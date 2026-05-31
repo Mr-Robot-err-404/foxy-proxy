@@ -28,6 +28,12 @@ var (
 	MessageStop  []byte = []byte("event: message_stop")
 )
 
+var httpClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+	},
+}
+
 func main() {
 	dev := flag.Bool("dev", false, "dev mode")
 	auth := flag.Bool("auth", false, "auth flow")
@@ -91,20 +97,20 @@ func message_handler(foxy *Foxy) APIFunc {
 			if err := foxy.save_auth(auth); err != nil {
 				log.Printf("failed to save auth: %s", err)
 			}
-			log.Println("Refreshed access token")
+			log.Printf("Refreshed access token, expires_in=%d expires_at=%s", auth.ExpiresIn, time.Now().Add(time.Duration(auth.ExpiresIn)*time.Second).Format(time.RFC3339))
 			foxy.auth = auth
-			foxy.expires_at = time.Now().Add(time.Duration(auth.Expires_in) * time.Second)
+			foxy.expires_at = time.Now().Add(time.Duration(auth.ExpiresIn) * time.Second)
 		}
 		foxy.mu.Unlock()
 		log.Printf("%s %s", r.Method, r.URL.Path)
 
+		defer r.Body.Close()
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			log.Printf("read body: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		defer r.Body.Close()
 		payload, err := sanitize_payload(body)
 
 		if err != nil {
@@ -124,24 +130,22 @@ func forward(foxy *Foxy, w http.ResponseWriter, r *http.Request, payload []byte)
 		return
 	}
 	req.Header = r.Header.Clone()
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", foxy.auth.Access_token))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", foxy.auth.AccessToken))
 
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-		},
-	}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
+		maps.Copy(w.Header(), resp.Header)
 		w.WriteHeader(resp.StatusCode)
+		io.Copy(w, resp.Body)
 		return
 	}
-	defer resp.Body.Close()
 	maps.Copy(w.Header(), resp.Header)
 
 	flusher, ok := w.(http.Flusher)
@@ -150,6 +154,7 @@ func forward(foxy *Foxy, w http.ResponseWriter, r *http.Request, payload []byte)
 		return
 	}
 	scanner := bufio.NewScanner(resp.Body)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()

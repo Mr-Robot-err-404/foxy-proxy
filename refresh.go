@@ -9,18 +9,18 @@ import (
 )
 
 type ExchangeResponse struct {
-	Token_type    string `json:"token_type"`
-	Access_token  string `json:"access_token"`
-	Expires_in    int    `json:"expires_in"`
-	Refresh_token string `json:"refresh_token"`
-	Scope         string `json:"scope"`
+	TokenType    string `json:"token_type"`
+	AccessToken  string `json:"access_token"`
+	ExpiresIn    int    `json:"expires_in"`
+	RefreshToken string `json:"refresh_token"`
+	Scope        string `json:"scope"`
 }
 
 type RefreshPayload struct {
-	Grant_type    string `json:"grant_type"`
-	Refresh_token string `json:"refresh_token"`
-	ClientID      string `json:"client_id"`
-	Scope         string `json:"scope"`
+	GrantType    string `json:"grant_type"`
+	RefreshToken string `json:"refresh_token"`
+	ClientID     string `json:"client_id"`
+	Scope        string `json:"scope"`
 }
 
 var RefreshHeaders = map[string]string{
@@ -39,10 +39,10 @@ func (foxy *Foxy) exchange_refresh_token() (ExchangeResponse, error) {
 	var result ExchangeResponse
 
 	payload := RefreshPayload{
-		Grant_type:    "refresh_token",
-		Refresh_token: foxy.auth.Refresh_token,
-		ClientID:      ClientID,
-		Scope:         RefreshScope,
+		GrantType:    "refresh_token",
+		RefreshToken: foxy.auth.RefreshToken,
+		ClientID:     ClientID,
+		Scope:        RefreshScope,
 	}
 	body, err := json.Marshal(payload)
 
