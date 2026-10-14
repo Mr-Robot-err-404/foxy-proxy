@@ -195,7 +195,14 @@ func system_transform(system []SystemItem, m Payload) []SystemItem {
 	updated := []SystemItem{}
 
 	for _, current := range system {
+		if current.Type != "text" {
+			updated = append(updated, current)
+			continue
+		}
 		current.Text = strip_system_prompt(current.Text)
+		if strings.TrimSpace(current.Text) == "" {
+			continue
+		}
 		updated = append(updated, current)
 	}
 	if missing_fingerprint(updated) {
