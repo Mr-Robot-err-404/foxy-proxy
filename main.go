@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"log"
 	"maps"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -20,12 +20,6 @@ type APIFunc func(w http.ResponseWriter, r *http.Request)
 const (
 	Port         string = ":6942"
 	TargetServer string = "https://api.anthropic.com/v1/messages?beta=true"
-)
-
-var (
-	StreamPrefix []byte = []byte("data: ")
-	MessageStart []byte = []byte("event: message_start")
-	MessageStop  []byte = []byte("event: message_stop")
 )
 
 var httpClient = &http.Client{
@@ -153,23 +147,29 @@ func forward(foxy *Foxy, w http.ResponseWriter, r *http.Request, payload []byte)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	scanner := bufio.NewScanner(resp.Body)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
-
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		w.Write(line)
-		w.Write([]byte("\n"))
-		flusher.Flush()
-
-		if bytes.HasPrefix(line, MessageStop) {
-			return
-		}
+	if err := relay_stream(w, resp.Body, flusher.Flush); err != nil {
+		log.Printf("stream relay failed: %v", err)
 	}
 }
 
 func set_required_headers(r *http.Request) {
 	for k, v := range RequiredHeaders {
+		if strings.EqualFold(k, "anthropic-beta") {
+			values := append(r.Header.Values(k), v)
+			seen := make(map[string]bool)
+			var betas []string
+			for _, value := range values {
+				for beta := range strings.SplitSeq(value, ",") {
+					beta = strings.TrimSpace(beta)
+					if beta != "" && !seen[beta] {
+						seen[beta] = true
+						betas = append(betas, beta)
+					}
+				}
+			}
+			r.Header.Set(k, strings.Join(betas, ","))
+			continue
+		}
 		r.Header.Set(k, v)
 	}
 }

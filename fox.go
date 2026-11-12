@@ -55,7 +55,7 @@ var Transformations = []Transformation{
 
 const (
 	salt    = "59cf53e54c78"
-	version = "2.1.81"
+	version = "2.1.280"
 )
 
 const BillingPrefix string = "x-anthropic-billing-header: cc_version=%s.df2; cc_entrypoint=cli; cch=%s;"
